@@ -1,6 +1,6 @@
+#include "signalflow/core/graph.h"
 #include "signalflow/core/core.h"
 #include "signalflow/core/graph-monitor.h"
-#include "signalflow/core/graph.h"
 #include "signalflow/node/node.h"
 #include "signalflow/node/oscillators/constant.h"
 
@@ -43,13 +43,7 @@ AudioGraph::AudioGraph(AudioGraphConfig *config,
     }
     else
     {
-        this->output = new AudioOut(this->config.get_output_device_name(),
-                                    this->config.get_sample_rate(),
-                                    this->config.get_output_buffer_size());
-        if (!this->output)
-        {
-            throw std::runtime_error("AudioGraph: Couldn't find audio output device");
-        }
+        throw std::runtime_error("AudioGraph: Couldn't find audio output device");
     }
 
     AudioOut_Abstract *audio_out = (AudioOut_Abstract *) this->output.get();
@@ -73,10 +67,6 @@ AudioGraph::AudioGraph(AudioGraphConfig *config,
     this->memory_usage = 0;
 
     this->monitor = nullptr;
-
-    this->recording_fd = NULL;
-    this->recording_num_channels = 0;
-    this->recording_buffer = (float *) calloc(SIGNALFLOW_DEFAULT_BLOCK_SIZE * SIGNALFLOW_MAX_CHANNELS, sizeof(float));
 
     if (start)
     {
@@ -334,23 +324,6 @@ void AudioGraph::render(int num_frames)
     this->node_count = this->_node_count_tmp;
     signalflow_debug("AudioGraph: pull %d frames, %d nodes", num_frames, this->node_count);
 
-    if (this->recording_fd)
-    {
-        /*------------------------------------------------------------------------
-         * If recording, interleave (for libsndfile format) and write to file.
-         * TODO: This breaks the cardinal rule of doing file I/O in the audio
-         *       thread. Refactor to use threading and ringbuffers.
-         *-----------------------------------------------------------------------*/
-        for (int channel_index = 0; channel_index < this->recording_num_channels; channel_index++)
-        {
-            for (int frame_index = 0; frame_index < num_frames; frame_index++)
-            {
-                this->recording_buffer[frame_index * this->recording_num_channels + channel_index] = this->output->out[channel_index][frame_index];
-            }
-        }
-        sf_writef_float(this->recording_fd, this->recording_buffer, num_frames);
-    }
-
     /*------------------------------------------------------------------------
      * Calculate CPU usage (approximately) by measuring the % of time
      * within the audio I/O callback that was used for processing.
@@ -515,34 +488,6 @@ void AudioGraph::stop(NodeRef node)
 void AudioGraph::replace(NodeRef node, NodeRef other)
 {
     nodes_to_replace.insert(std::make_pair(node, other));
-}
-
-void AudioGraph::start_recording(const std::string &filename, int num_channels)
-{
-    SF_INFO info;
-    memset(&info, 0, sizeof(SF_INFO));
-    info.frames = this->get_output_buffer_size();
-
-    if (num_channels == 0)
-    {
-        num_channels = this->output->get_num_input_channels();
-    }
-    info.channels = num_channels;
-    info.samplerate = (int) this->sample_rate;
-    info.format = SF_FORMAT_WAV | SF_FORMAT_PCM_16;
-
-    this->recording_num_channels = num_channels;
-    this->recording_fd = sf_open(filename.c_str(), SFM_WRITE, &info);
-
-    if (!this->recording_fd)
-    {
-        throw std::runtime_error(std::string("Failed to write soundfile (") + std::string(sf_strerror(NULL)) + ")");
-    }
-}
-
-void AudioGraph::stop_recording()
-{
-    sf_close(this->recording_fd);
 }
 
 void AudioGraph::show_structure()
@@ -713,5 +658,4 @@ void AudioGraph::register_memory_dealloc(size_t num_bytes)
 {
     memory_usage -= num_bytes;
 }
-
 }
