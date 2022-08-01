@@ -78,13 +78,6 @@ public:
     Buffer(std::vector<sample> data);
 
     /**------------------------------------------------------------------------
-     * Load the contents of the audio file `filename` into a new buffer.
-     * The file must be of a format that libsndfile can read.
-     *
-     *------------------------------------------------------------------------*/
-    Buffer(std::string filename);
-
-    /**------------------------------------------------------------------------
       * Destroy the buffer.
       *
       *------------------------------------------------------------------------*/
@@ -95,26 +88,6 @@ public:
       *
       *------------------------------------------------------------------------*/
     void resize(int num_channels, int num_frames);
-
-    /**------------------------------------------------------------------------
-     * Load the contents of `filename` into the buffer.
-     * If the buffer is smaller than the file's contents, only the first
-     * part of the file is read.
-     *
-     * @param filename The filename to read. Must be of a type supported by
-     *                 libsndfile.
-     *
-     *------------------------------------------------------------------------*/
-    void load(std::string filename);
-
-    /**------------------------------------------------------------------------
-     * Write the contents of the buffer to the file `filename`.
-     * Only supports .wav format at present.
-     *
-     * @param filename The filename to write. Must end in .wav.
-     *
-     *------------------------------------------------------------------------*/
-    void save(std::string filename);
 
     /**------------------------------------------------------------------------
      * Splits the buffer into chunks of `num_frames_per_part` frames,
@@ -275,7 +248,6 @@ public:
     sample **data = nullptr;
 
 protected:
-    std::string filename;
     float sample_rate;
     unsigned int num_channels;
     unsigned long num_frames;
