@@ -77,6 +77,15 @@ public:
      *------------------------------------------------------------------------*/
     Buffer(std::vector<sample> data);
 
+#ifdef SNDFILE_H
+    /**------------------------------------------------------------------------
+     * Load the contents of the audio file `filename` into a new buffer.
+     * The file must be of a format that libsndfile can read.
+     *
+     *------------------------------------------------------------------------*/
+    Buffer(std::string filename);
+#endif
+
     /**------------------------------------------------------------------------
       * Destroy the buffer.
       *
@@ -88,6 +97,28 @@ public:
       *
       *------------------------------------------------------------------------*/
     void resize(int num_channels, int num_frames);
+
+#ifdef SNDFILE_H
+    /**------------------------------------------------------------------------
+     * Load the contents of `filename` into the buffer.
+     * If the buffer is smaller than the file's contents, only the first
+     * part of the file is read.
+     *
+     * @param filename The filename to read. Must be of a type supported by
+     *                 libsndfile.
+     *
+     *------------------------------------------------------------------------*/
+    void load(std::string filename);
+
+    /**------------------------------------------------------------------------
+     * Write the contents of the buffer to the file `filename`.
+     * Only supports .wav format at present.
+     *
+     * @param filename The filename to write. Must end in .wav.
+     *
+     *------------------------------------------------------------------------*/
+    void save(std::string filename);
+#endif
 
     /**------------------------------------------------------------------------
      * Splits the buffer into chunks of `num_frames_per_part` frames,
@@ -201,6 +232,7 @@ public:
      *------------------------------------------------------------------------*/
     float get_duration();
 
+#ifdef SNDFILE_H
     /**------------------------------------------------------------------------
      * Get the filename that the buffer was loaded from / saved to, if set.
      *
@@ -208,7 +240,7 @@ public:
      *
      *------------------------------------------------------------------------*/
     std::string get_filename();
-
+#endif
     /**------------------------------------------------------------------------
      * Get a pointer to the buffer's data.
      * Each element points to a `sample *` containing a channel of audio.
@@ -248,6 +280,9 @@ public:
     sample **data = nullptr;
 
 protected:
+#ifdef SNDFILE_H
+    std::string filename;
+#endif
     float sample_rate;
     unsigned int num_channels;
     unsigned long num_frames;

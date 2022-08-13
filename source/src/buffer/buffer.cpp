@@ -3,6 +3,10 @@
 #include "signalflow/core/exceptions.h"
 #include "signalflow/core/graph.h"
 
+#ifdef SNDFILE_H
+#include <sndfile.h>
+#endif
+
 #include <stdlib.h>
 #include <string.h>
 
@@ -78,6 +82,15 @@ Buffer::Buffer(std::vector<sample> data)
 {
 }
 
+#ifdef SNDFILE_H
+Buffer::Buffer(std::string filename)
+{
+    this->interpolate = SIGNALFLOW_INTERPOLATION_LINEAR;
+    this->load(filename);
+}
+#endif
+
+
 Buffer::~Buffer()
 {
     if (this->data)
@@ -136,6 +149,143 @@ void Buffer::resize(int num_channels, int num_frames)
         this->data = nullptr;
     }
 }
+
+#ifdef SNDFILE_H
+void Buffer::load(std::string filename)
+{
+    std::string path = filename;
+    if (access(path.c_str(), 0) != 0)
+    {
+        path = SIGNALFLOW_USER_DIR + "/audio/" + filename;
+        if (access(path.c_str(), 0) != 0)
+        {
+            throw std::runtime_error(std::string("Couldn't find file at path: ") + filename);
+        }
+    }
+
+    SF_INFO info;
+    SNDFILE *sndfile = sf_open(path.c_str(), SFM_READ, &info);
+
+    if (!sndfile)
+    {
+        throw std::runtime_error(std::string("Couldn't read audio from path: ") + filename);
+    }
+
+    if (this->data)
+    {
+        /*------------------------------------------------------------------------
+         * If the buffer has already been allocated, we want to read as many
+         * frames as possible into the existing allocation. Check that the
+         * existing config is compatible with the audio file.
+         *-----------------------------------------------------------------------*/
+        if ((int) this->num_channels != info.channels)
+        {
+            throw std::runtime_error(std::string("Can't read audio: audio file channel count does not match buffer"));
+        }
+        if ((int) this->sample_rate != info.samplerate)
+        {
+            throw std::runtime_error(std::string("Can't read audio: audio file sample rate does not match buffer"));
+        }
+    }
+    else
+    {
+        /*------------------------------------------------------------------------
+         * Buffer has not yet been allocated. Allocate memory and populate
+         * property fields.
+         *-----------------------------------------------------------------------*/
+        this->resize(info.channels, info.frames);
+        this->num_channels = info.channels;
+        this->num_frames = info.frames;
+        this->sample_rate = info.samplerate;
+        this->duration = this->num_frames / this->sample_rate;
+    }
+
+    int frames_per_read = SIGNALFLOW_DEFAULT_BUFFER_BLOCK_SIZE;
+    int samples_per_read = frames_per_read * info.channels;
+    sample *buffer = new sample[samples_per_read];
+    unsigned int total_frames_read = 0;
+
+    while (true)
+    {
+        int count = sf_readf_float(sndfile, buffer, frames_per_read);
+        for (int frame = 0; frame < count; frame++)
+        {
+            // TODO: Vector-accelerated de-interleave
+            for (int channel = 0; channel < info.channels; channel++)
+            {
+                this->data[channel][total_frames_read] = buffer[frame * info.channels + channel];
+            }
+            total_frames_read++;
+
+            /*------------------------------------------------------------------------
+             * Check whether we've hit the limit of this Buffer, which can happen
+             * in the case of pre-allocated buffers loading a determinate # samples
+             * from memory.
+             *-----------------------------------------------------------------------*/
+            if (total_frames_read >= this->num_frames)
+            {
+                break;
+            }
+        }
+        if (count < frames_per_read)
+        {
+            break;
+        }
+    }
+
+    delete[] buffer;
+    sf_close(sndfile);
+    this->filename = filename;
+
+    // TODO Logging
+    // std::cout << "Read " << info.channels << " channels, " << info.frames << " frames" << std::endl;
+}
+
+void Buffer::save(std::string filename)
+{
+    SF_INFO info;
+    memset(&info, 0, sizeof(SF_INFO));
+    info.frames = this->num_frames;
+    info.channels = this->num_channels;
+    info.samplerate = (int) this->sample_rate;
+    info.format = SF_FORMAT_WAV | SF_FORMAT_PCM_16;
+    SNDFILE *sndfile = sf_open(filename.c_str(), SFM_WRITE, &info);
+
+    if (!sndfile)
+    {
+        throw std::runtime_error(std::string("Failed to write soundfile (") + std::string(sf_strerror(nullptr)) + ")");
+    }
+
+    int frames_per_write = SIGNALFLOW_DEFAULT_BUFFER_BLOCK_SIZE;
+    int samples_per_write = frames_per_write * info.channels;
+    sample *buffer = new sample[samples_per_write];
+    int frame_index = 0;
+
+    while (true)
+    {
+        int frames_this_write = frames_per_write;
+        if ((int) this->num_frames - frame_index < frames_this_write)
+            frames_this_write = this->num_frames - frame_index;
+
+        for (int frame = 0; frame < frames_this_write; frame++)
+        {
+            // TODO: Vector-accelerated interleave
+            for (int channel = 0; channel < info.channels; channel++)
+            {
+                buffer[frame * info.channels + channel] = this->data[channel][frame_index];
+            }
+            frame_index++;
+        }
+        sf_writef_float(sndfile, buffer, frames_this_write);
+        if ((unsigned int) frame_index >= this->num_frames)
+            break;
+    }
+
+    delete[] buffer;
+    sf_close(sndfile);
+    this->filename = filename;
+}
+#endif
 
 std::vector<BufferRef> Buffer::split(int num_frames_per_part)
 {
@@ -269,6 +419,13 @@ float Buffer::get_duration()
 {
     return this->duration;
 }
+
+#ifdef SNDFILE_H
+std::string Buffer::get_filename()
+{
+    return this->filename;
+}
+#endif
 
 void Buffer::set_interpolation_mode(signalflow_interpolation_mode_t mode)
 {
