@@ -39,9 +39,10 @@ int AudioOut_JUCE::destroy()
 void AudioOut_JUCE::prepare_to_play(const unsigned int sample_rate)
 {
     this->sample_rate = sample_rate;
+    shared_graph->set_sample_rate(static_cast<int>(sample_rate));
 }
 
-void AudioOut_JUCE::process_block(juce::AudioBuffer<float>& buffer)
+void AudioOut_JUCE::process_block(juce::AudioBuffer<float> &buffer)
 {
     const auto num_frames = buffer.getNumSamples();
 

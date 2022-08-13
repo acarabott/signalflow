@@ -5,8 +5,8 @@
 #define AudioOut AudioOut_JUCE
 
 #include "signalflow/core/graph.h"
-#include "signalflow/node/node.h"
 #include "signalflow/node/io/output/abstract.h"
+#include "signalflow/node/node.h"
 
 #include <juce_audio_basics/juce_audio_basics.h>
 
@@ -24,7 +24,7 @@ public:
     int destroy() override;
 
     void prepare_to_play(unsigned int sample_rate);
-    void process_block(juce::AudioBuffer<float>& buffer);
+    void process_block(juce::AudioBuffer<float> &buffer);
 
 private:
     std::string device_name;
