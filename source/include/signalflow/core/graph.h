@@ -12,6 +12,10 @@
 #include "signalflow/node/node.h"
 #include "signalflow/patch/patch.h"
 
+#ifdef SNDFILE_H
+#include <sndfile.h>
+#endif
+
 namespace signalflow
 {
 
@@ -270,6 +274,26 @@ public:
      *--------------------------------------------------------------------------------*/
     void stop(PatchRef patch);
 
+#ifdef SNDFILE_H
+
+    /**--------------------------------------------------------------------------------
+     * Start recording the graph's output to a named file.
+     *
+     * @param filename The file to write to.
+     * @param num_channels The number of channels to record. If not specified,
+     *                     uses the same number of channels as the graph's
+     *                     output device.
+     *
+     *--------------------------------------------------------------------------------*/
+    void start_recording(const std::string &filename, int num_channels = 0);
+
+    /**--------------------------------------------------------------------------------
+     * Stop recording the graph's output.
+     *
+     *--------------------------------------------------------------------------------*/
+    void stop_recording();
+#endif
+
     /**--------------------------------------------------------------------------------
      * Get audio sample rate.
      *
@@ -372,6 +396,13 @@ private:
 
     NodeRef output = nullptr;
     AudioGraphConfig config;
+
+#ifdef SNDFILE_H
+    SNDFILE *recording_fd;
+    float *recording_buffer;
+    int recording_num_channels;
+#endif
+
 
     friend class Buffer;
 };
